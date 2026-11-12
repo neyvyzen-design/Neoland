@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Garis lengkung atas ala Dynamic Island -->
+    <path android:fillColor="#00000000"
+          android:pathData="M24,54 C24,24 84,24 84,54"
+          android:strokeWidth="6"
+          android:strokeColor="#FFFFFF"
+          android:strokeLineCap="round"/>
+    <!-- Huruf N Modern -->
+    <path android:fillColor="#00000000"
+          android:pathData="M36,74 V40 L72,74 V40"
+          android:strokeWidth="9"
+          android:strokeColor="@color/neoland_fg"
+          android:strokeLineCap="round"
+          android:strokeLineJoin="round"/>
+</vector>
