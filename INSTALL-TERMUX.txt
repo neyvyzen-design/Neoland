@@ -1,0 +1,19 @@
+HOME / LOCK SCREEN PROFILE SPLIT — Dynamic Island 1.6.8
+
+Patch files:
+- Settings.kt: persisted Lock placement model; null keeps existing Home geometry as Lock default.
+- SizeScreen.kt: Home Screen / Lock Screen tabs; independent X/Y/width/height/notch controls.
+- IslandBus.kt: calibration profile state.
+- IslandOverlay.kt + IslandService.kt: live preview and automatic profile switching from Android Keyguard state.
+
+Apply inside the root of your existing cloned repository:
+  unzip -o /sdcard/Download/dynamic-island-home-lock-patch.zip -d .
+  git status --short
+  git add app/src/main/java/com/akira/island
+  git commit -m "Separate home and lock screen island placement"
+  git push
+
+GitHub Actions workflow is already in .github/workflows/android.yml and runs on push.
+Open GitHub > Actions > latest "Сборка APK" run to inspect the build.
+
+Important: local Gradle compile could not be run in this environment because Gradle distribution download was blocked by unavailable network access. Let GitHub Actions perform the actual Android build and check its logs before installing.

@@ -1,0 +1,34 @@
+DYNAMIC ISLAND 1.6.9 — PEMBARUAN PROFIL LAYAR UTAMA / LAYAR KUNCI
+
+1. Letakkan file ZIP ini di folder Download Android.
+2. Di Termux jalankan:
+
+   cd ~/dynamic-island
+   unzip -o /sdcard/Download/dynamic-island-1.6.9-indonesia.zip -d .
+   git status --short
+   git add -A
+   git commit -m "Rilis 1.6.9: pisahkan profil layar utama dan layar kunci"
+   git push
+
+3. Perbarui deskripsi repositori GitHub:
+
+   gh repo edit neyvyzen-design/dynamic-island --description "Dynamic Island Android dengan profil posisi dan ukuran terpisah untuk Layar Utama dan Layar Kunci. Antarmuka dan dokumentasi Bahasa Indonesia."
+
+4. Pantau build:
+
+   gh run list -R neyvyzen-design/dynamic-island --limit 3
+
+5. Jika build terbaru masih berjalan, ambil ID lengkap dari databaseId lalu:
+
+   gh run watch ID_LENGKAP -R neyvyzen-design/dynamic-island --exit-status
+
+6. Setelah sukses, unduh APK:
+
+   gh run download ID_LENGKAP -R neyvyzen-design/dynamic-island -D ~/storage/downloads/LiquidIsland-1.6.9
+
+CATATAN TEKNIS
+- applicationId tetap com.neyvyzen.design.dynamicisland.
+- versionCode dinaikkan dari 16 menjadi 17.
+- versionName dinaikkan dari 1.6.8 menjadi 1.6.9.
+- Migrasi pertama mengisi profil Layar Kunci dari posisi lama, lalu menyimpannya secara terpisah.
+- Jangan hapus aplikasi lama saat memasang pembaruan; gunakan APK bertanda tangan dari GitHub Actions.

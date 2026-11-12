@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Dynamic Island</string>
+    <string name="a11y_label">Dynamic Island</string>
+    <string name="tile_label">Island</string>
+    <string name="a11y_desc">Menampilkan kapsul bergaya Dynamic Island di atas kamera: musik, timer, progres unduhan, senter, dan peristiwa sistem. Layanan mendeteksi aplikasi yang sedang dibuka untuk menyembunyikan pemutar atau menampilkan informasi pembayaran. Layar hanya dibaca saat aplikasi navigasi, Jam, atau pembayaran digunakan. Informasi yang dibaca tetap berada di ponsel; hanya judul dan artis lagu yang dikirim untuk mencari lirik.</string>
+</resources>

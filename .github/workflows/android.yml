@@ -1,0 +1,165 @@
+name: Rilis APK Dynamic Island
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# Proses build hanya membaca repositori; Gradle dan dependensinya tidak diberi izin menulis.
+# Hanya tugas rilis terpisah di bawah yang boleh menulis, itu pun hanya pada cabang utama atau tag.
+permissions:
+  contents: read
+
+# Sidik jari sertifikat penanda tangan aplikasi sejak versi 1.6.1. Jika rahasia diganti dengan kunci lain,
+# proses build dihentikan agar pembaruan tetap dapat dipasang oleh semua pengguna.
+env:
+  SIGNING_CERT_SHA256: 77df15cd35d27f4098e31435198c95015c22a50a1721eb20bd7ff54bf1ccd815
+
+jobs:
+  build:
+    name: Bangun dan tanda tangani APK
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      release: ${{ steps.ver.outputs.release }}
+      update: ${{ steps.ver.outputs.update }}
+      signed: ${{ steps.sign.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Rilis dibuat otomatis saat versionName di app/build.gradle.kts dinaikkan
+      # (atau saat tag v* dikirim). Catatan rilis diambil dari CHANGELOG.md.
+      # Jika rilis versi ini sudah ada, push ke cabang utama akan memperbarui catatan rilisnya.
+      - name: Periksa versi aplikasi
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          v=$(grep -oP 'versionName = "\K[0-9A-Za-z.\-]+(?=")' app/build.gradle.kts)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then tag="$GITHUB_REF_NAME"; else tag="v$v"; fi
+          # Tag dipakai pada nama rilis dan perintah; hanya huruf, angka, titik, dan tanda hubung yang diizinkan.
+          if [[ ! "$tag" =~ ^v[0-9A-Za-z.\-]+$ ]]; then echo "Format tag tidak valid: $tag" >&2; exit 1; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          exists=false
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && exists=true
+          release=false
+          update=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            release=true
+          elif [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]]; then
+            if [[ "$exists" == true ]]; then update=true; else release=true; fi
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "update=$update" >> "$GITHUB_OUTPUT"
+
+      # Gradle membangun APK tanpa tanda tangan; kunci tidak diperlukan pada tahap ini.
+      - name: Bangun APK
+        run: ./gradlew --no-daemon assembleRelease
+
+      # Penandatanganan dilakukan terpisah; kunci rahasia hanya tersedia pada langkah ini lalu dihapus.
+      - name: Tanda tangani APK
+        id: sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          RELEASE: ${{ steps.ver.outputs.release }}
+          UPDATE: ${{ steps.ver.outputs.update }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            if [[ "$RELEASE" == true || "$UPDATE" == true ]]; then
+              echo "::error::Rahasia KEYSTORE_BASE64 dan KEYSTORE_PASSWORD tidak tersedia; rilis tidak dapat diterbitkan tanpa tanda tangan."
+              exit 1
+            fi
+            echo "::notice::Rahasia kunci tidak tersedia (misalnya pull request dari fork); APK berhasil dibangun tetapi tidak ditandatangani atau diterbitkan."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ks="$RUNNER_TEMP/island.p12"
+          trap 'rm -f "$ks"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ks"
+          # Periksa bahwa rahasia berisi kunci yang benar.
+          info=$(keytool -list -v -keystore "$ks" -storetype PKCS12 -storepass:env KEYSTORE_PASSWORD -alias island)
+          key=$(awk -F'SHA256: *' 'NF > 1 {gsub(":", "", $2); print tolower($2); exit}' <<<"$info")
+          if [[ "$key" != "$SIGNING_CERT_SHA256" ]]; then
+            echo "::error::Kunci pada KEYSTORE_BASE64 berbeda ($key); yang diharapkan $SIGNING_CERT_SHA256."
+            exit 1
+          fi
+          bt=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "build-tools: $bt"
+          mkdir -p out
+          "$bt/zipalign" -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" sign --ks "$ks" --ks-type PKCS12 --ks-key-alias island \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out out/DynamicIsland.apk "$RUNNER_TEMP/aligned.apk"
+          # Pastikan APK ditandatangani dengan kunci tersebut (sertifikat bukan rahasia dan terlihat di log).
+          certs=$("$bt/apksigner" verify --verbose --print-certs out/DynamicIsland.apk)
+          echo "$certs"
+          got=$(awk 'tolower($0) ~ /certificate sha-256 digest:/ {print tolower($NF); exit}' <<<"$certs")
+          if [[ "$got" != "$SIGNING_CERT_SHA256" ]]; then
+            echo "::error::APK ditandatangani dengan kunci yang salah ($got); yang diharapkan $SIGNING_CERT_SHA256."
+            exit 1
+          fi
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      # APK hasil uji disimpan selama tujuh hari; versi publik tersedia di halaman Rilis.
+      - uses: actions/upload-artifact@v4
+        if: steps.sign.outputs.signed == 'true'
+        with:
+          name: DynamicIsland-apk
+          path: out/DynamicIsland.apk
+          retention-days: 7
+
+  release:
+    name: Terbitkan rilis GitHub
+    needs: build
+    if: needs.build.outputs.signed == 'true' && (needs.build.outputs.release == 'true' || needs.build.outputs.update == 'true')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: DynamicIsland-apk
+          path: out
+
+      - name: Susun catatan rilis Bahasa Indonesia
+        run: |
+          v="${TAG#v}"
+          section() { awk -v v="$v" 'index($0, "## [" v "]") == 1 {f=1; next} /^## \[/ {f=0} f' "$1"; }
+          {
+            echo "# Dynamic Island $v"
+            section CHANGELOG.md
+            printf '\n**Cara memasang:** unduh `DynamicIsland.apk` di bawah lalu buka di ponsel. Versi baru dipasang di atas versi lama dan pengaturan tetap tersimpan. **Dari versi 1.6.0 atau lebih lama:** hapus versi lama satu kali terlebih dahulu karena kunci tanda tangan aplikasi berubah.\n'
+          } > notes.md
+          cat notes.md
+
+      # GitHub CLI menerbitkan rilis tanpa tindakan pihak ketiga yang memerlukan izin tulis.
+      - name: Terbitkan rilis
+        if: needs.build.outputs.release == 'true'
+        run: |
+          gh release create "$TAG" out/DynamicIsland.apk -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Dynamic Island $TAG · Pulau Dinamis" --notes-file notes.md --latest
+
+      - name: Perbarui catatan rilis
+        if: needs.build.outputs.update == 'true'
+        run: |
+          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file notes.md --title "Dynamic Island $TAG · Pulau Dinamis"
