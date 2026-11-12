@@ -98,6 +98,9 @@ import androidx.compose.ui.unit.dp
 import com.neoland.app.core.BatteryInfo
 import com.neoland.app.core.ChronoInfo
 import com.neoland.app.core.Controls
+import com.neoland.app.core.NeolandDeviceState
+import com.neoland.app.core.NeolandMediaState
+import com.neoland.app.core.NeolandUIState
 import com.neoland.app.core.IslandBus
 import com.neoland.app.core.Lyrics
 import com.neoland.app.core.NoticeStyle
@@ -139,9 +142,9 @@ fun IslandOverlay(
     onBubbleBounds: (Rect) -> Unit = {},
 ) {
     val saved by SettingsRepo.state.collectAsState()
-    val powerSave by IslandBus.powerSave.collectAsState()
-    val keyguard by IslandBus.keyguard.collectAsState()
-    val calibrationLock by IslandBus.calibrationLockProfile.collectAsState()
+    val powerSave by NeolandDeviceState.powerSave.collectAsState()
+    val keyguard by NeolandDeviceState.keyguard.collectAsState()
+    val calibrationLock by NeolandUIState.calibrationLockProfile.collectAsState()
     // Геометрия автоматически переключается; в настройках показываем выбранный профиль для точной калибровки.
     val useLockProfile = keyguard || calibrationLock
     val screenSettings = remember(saved, useLockProfile) { if (useLockProfile) saved.lockScreenSettings() else saved }
@@ -149,7 +152,7 @@ fun IslandOverlay(
     val target = remember(screenSettings, powerSave) { screenSettings.forPowerSave(powerSave) }
     // 1.7.6: положение и размер острова меняются плавно — от ползунков, при смене профиля Home/Lock и т.п.
     // Пока двигают ползунок калибровки, пружина жёстче, чтобы остров не отставал от пальца
-    val sliding by IslandBus.calibrating.collectAsState()
+    val sliding by NeolandUIState.calibrating.collectAsState()
     val moveSpec: FiniteAnimationSpec<Float> =
         if (target.expandStyle == ExpandStyle.INSTANT) snap()
         else spring(dampingRatio = 1f, stiffness = if (sliding) 900f else animStiffness(target))
@@ -167,8 +170,8 @@ fun IslandOverlay(
     val s = remember(target, animW.roundToInt(), animH.roundToInt()) {
         target.copy(width = animW.roundToInt(), height = animH.roundToInt())
     }
-    val media by IslandBus.media.collectAsState()
-    val lyrics by IslandBus.lyrics.collectAsState()
+    val media by NeolandMediaState.media.collectAsState()
+    val lyrics by NeolandMediaState.lyrics.collectAsState()
     val progress by IslandBus.progress.collectAsState()
     val chrono by IslandBus.chrono.collectAsState()
     val calls by IslandBus.calls.collectAsState()
@@ -177,17 +180,17 @@ fun IslandOverlay(
     val timer by IslandBus.timer.collectAsState()
     val stopwatch by IslandBus.stopwatch.collectAsState()
     val notice by IslandBus.notice.collectAsState()
-    val battery by IslandBus.battery.collectAsState()
+    val battery by NeolandDeviceState.battery.collectAsState()
     val foreground by IslandBus.foregroundPackage.collectAsState()
-    val expanded by IslandBus.expanded.collectAsState()
-    val focus by IslandBus.focus.collectAsState()
-    val calibrating by IslandBus.calibrating.collectAsState()
+    val expanded by NeolandUIState.expanded.collectAsState()
+    val focus by NeolandUIState.focus.collectAsState()
+    val calibrating by NeolandUIState.calibrating.collectAsState()
     val nextAlarm by IslandBus.nextAlarm.collectAsState()
-    val egg by IslandBus.egg.collectAsState()
+    val egg by NeolandMediaState.egg.collectAsState()
     val payReady by IslandBus.payReady.collectAsState()
     // Будильник появляется в острове за 12 часов и уходит, когда прозвенел: просыпаемся ровно в эти два момента,
     // а не каждые полминуты. Пока телефон спит, ожидание стоит — поэтому со включением экрана пересчитываем
-    val screenOn by IslandBus.screenOn.collectAsState()
+    val screenOn by NeolandDeviceState.screenOn.collectAsState()
     var alarmNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(nextAlarm, screenOn) {
         val at = nextAlarm?.triggerAt ?: return@LaunchedEffect
@@ -251,12 +254,12 @@ fun IslandOverlay(
     // 1.7.7: пока телефон закрыт — только значок замка. Когда лицо или отпечаток подтверждены (телефон открыт, а шторка ещё на экране),
     // замок открывается на секунду, и дальше показывается всё остальное.
     val lockCfg by SettingsRepo.state.collectAsState()
-    val lockKg by IslandBus.keyguard.collectAsState()
-    val lockDevice by IslandBus.locked.collectAsState()
+    val lockKg by NeolandDeviceState.keyguard.collectAsState()
+    val lockDevice by NeolandDeviceState.locked.collectAsState()
     val lockOn = lockCfg.lockMinimal && lockKg && lockDevice && !calibrating
     var lockVerified by remember { mutableStateOf(false) }
     var faceStage by remember { mutableStateOf(FaceStage.NONE) }
-    val lockScreenOn by IslandBus.screenOn.collectAsState()
+    val lockScreenOn by NeolandDeviceState.screenOn.collectAsState()
     val lockWas = remember { booleanArrayOf(false) }
     // 1.7.8: экран зажёгся на замке — «ищем лицо»; за 3 секунды не открылся — «не узнали»; открылся — галочка.
     // Android не сообщает о самом сканировании лица, поэтому «ищем» и «не узнали» — по времени после включения экрана
@@ -347,7 +350,7 @@ fun IslandOverlay(
     }
 
     // Пока двигают ползунок «Ширина с активностью», на острове пример: стрелка и метры
-    val previewUntil by IslandBus.widthPreviewUntil.collectAsState()
+    val previewUntil by NeolandUIState.widthPreviewUntil.collectAsState()
     var previewNow by remember { mutableLongStateOf(0L) }
     LaunchedEffect(previewUntil) {
         while (true) {
@@ -606,7 +609,7 @@ private fun IslandBody(
     val pull = remember { Animatable(0f) }
 
     // Liquid Glass: при смене содержимого по стеклу пробегает блик, при наклоне телефона блики сдвигаются
-    val tilt = IslandBus.glassTilt.collectAsState()
+    val tilt = NeolandDeviceState.glassTilt.collectAsState()
     val sheen = remember { Animatable(-1f) }
     LaunchedEffect(primary.id, expanded, s.liquidGlass) {
         if (!s.liquidGlass || s.reduceEffects) return@LaunchedEffect
@@ -626,7 +629,7 @@ private fun IslandBody(
     val current by rememberUpdatedState(primary)
     val isExpanded by rememberUpdatedState(expanded)
     val settings by rememberUpdatedState(s)
-    val egg by IslandBus.egg.collectAsState()
+    val egg by NeolandMediaState.egg.collectAsState()
 
     Box(
         Modifier
@@ -894,7 +897,7 @@ private fun onTap(context: Context, act: Act, expanded: Boolean, s: IslandSettin
     when (act) {
         is Act.NoticeA -> {
             // Пока вводят ответ, нажатие по карточке не должно открывать приложение
-            if (IslandBus.reply.value != null) return
+            if (NeolandUIState.reply.value != null) return
             // Нажатие на уведомление приложения открывает его, как на iPhone
             act.n.message?.let { m ->
                 if (!Controls.send(context, m.intent)) Controls.openApp(context, m.pkg)
@@ -919,7 +922,7 @@ private fun onTap(context: Context, act: Act, expanded: Boolean, s: IslandSettin
 
 private fun perform(context: Context, action: TapAction, act: Act) {
     if (act.transient) return
-    val hasMedia = IslandBus.media.value != null
+    val hasMedia = NeolandMediaState.media.value != null
     when (action) {
         TapAction.EXPAND -> Controls.expand(act.id)
         TapAction.OPEN_APP -> act.pkg?.let { Controls.openApp(context, it) } ?: Controls.expand(act.id)
@@ -947,7 +950,7 @@ private fun perform(context: Context, action: TapAction, act: Act) {
 private fun Bubble(act: Act, s: IslandSettings) {
     val h = activeHeight(s)
     val haptic = rememberHaptic()
-    val tilt = IslandBus.glassTilt.collectAsState()
+    val tilt = NeolandDeviceState.glassTilt.collectAsState()
     val now = rememberNow(500, active = act is Act.TimerA)
     Box(
         Modifier

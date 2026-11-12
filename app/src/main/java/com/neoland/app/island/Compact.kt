@@ -92,6 +92,9 @@ import android.widget.Toast
 import com.neoland.app.core.AppMessage
 import com.neoland.app.core.CallInfo
 import com.neoland.app.core.Controls
+import com.neoland.app.core.NeolandDeviceState
+import com.neoland.app.core.NeolandMediaState
+import com.neoland.app.core.NeolandUIState
 import com.neoland.app.core.IslandBus
 import com.neoland.app.core.LiveInfo
 import com.neoland.app.core.LiveKind
@@ -141,7 +144,7 @@ fun CompactContent(act: Act, s: IslandSettings, wideWidth: Dp) {
     when (act) {
         // Пустая капсула; на экране блокировки слева от камеры — замок
         is Act.Idle -> Box(Modifier.size(s.width.dp, s.height.dp), contentAlignment = Alignment.CenterStart) {
-            val keyguard by IslandBus.keyguard.collectAsState()
+            val keyguard by NeolandDeviceState.keyguard.collectAsState()
             AnimatedVisibility(s.evLock && keyguard, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
                 Icon(Ios.lock, null, tint = Color.White, modifier = Modifier.padding(start = s.height.dp * 0.38f).size(s.height.dp * 0.46f))
             }
@@ -331,7 +334,7 @@ fun CompactRow(
 private fun MediaCompact(m: MediaInfo, s: IslandSettings) {
     val h = activeHeight(s)
     val art = h * 0.58f
-    val egg by IslandBus.egg.collectAsState()
+    val egg by NeolandMediaState.egg.collectAsState()
     // Новый трек: обложка сменяется плавно, цвет эквалайзера перетекает в цвет новой обложки
     val accent by animateColorAsState(m.accent, tween(400), label = "accent")
     CompactRow(h, compactGap(s), sideMax(s),
@@ -476,8 +479,8 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
     val context = LocalContext.current
     val haptic = rememberHaptic()
     val iconSize = 40.dp
-    val reply by IslandBus.reply.collectAsState()
-    val locked by IslandBus.locked.collectAsState()
+    val reply by NeolandUIState.reply.collectAsState()
+    val locked by NeolandDeviceState.locked.collectAsState()
     // На заблокированном телефоне — как в шторке: без кнопок, а скрытые уведомления без имени и текста
     val hidden = locked && m.sensitive
     val replyAction = reply?.takeIf { it.noticeId == n.id && !locked }?.action
@@ -492,7 +495,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
     }
     // Плашка ушла — ввод закрывается, окну возвращается «неактивный» режим
     DisposableEffect(n.id) {
-        onDispose { if (IslandBus.reply.value?.noticeId == n.id) IslandBus.reply.value = null }
+        onDispose { if (NeolandUIState.reply.value?.noticeId == n.id) NeolandUIState.reply.value = null }
     }
 
     Column(
@@ -563,7 +566,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
                     if (text.isBlank()) return@ReplyField
                     if (Controls.sendReply(context, replyAction, text)) {
                         Messages.onReplied(m.key)
-                        IslandBus.reply.value = null
+                        NeolandUIState.reply.value = null
                         IslandBus.notice.value = null
                         // Как в ролике: на миг «Отправлено» с галочкой и кому
                         IslandBus.post(
@@ -593,7 +596,7 @@ private fun MessageCard(n: Notice, m: AppMessage, s: IslandSettings, @Suppress("
                     // Последняя кнопка уступает место, если подпись длинная
                     TextAction(a.title, accent, if (i == m.actions.lastIndex) Modifier.weight(1f, fill = false) else Modifier, size = 14.sp) {
                         if (a.isReply) {
-                            IslandBus.reply.value = ReplyState(n.id, a)
+                            NeolandUIState.reply.value = ReplyState(n.id, a)
                         } else {
                             Controls.send(context, a.intent)
                             IslandBus.notice.value = null

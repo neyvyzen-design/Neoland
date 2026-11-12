@@ -105,6 +105,9 @@ import com.neoland.app.core.BatteryInfo
 import com.neoland.app.core.CallInfo
 import com.neoland.app.core.ChronoInfo
 import com.neoland.app.core.Controls
+import com.neoland.app.core.NeolandDeviceState
+import com.neoland.app.core.NeolandMediaState
+import com.neoland.app.core.NeolandUIState
 import com.neoland.app.core.IslandBus
 import com.neoland.app.core.Lang
 import com.neoland.app.core.LiveInfo
@@ -221,12 +224,12 @@ private fun MediaExpanded(m: MediaInfo, s: IslandSettings, lyrics: Lyrics?) {
                 }
             }
             Spacer(Modifier.width(10.dp))
-            val egg by IslandBus.egg.collectAsState()
+            val egg by NeolandMediaState.egg.collectAsState()
             if (egg) SoulHeart(Modifier.size(24.dp)) else Equalizer(m.accent, m.playing, s.liveEqualizer, Modifier.size(30.dp, 24.dp))
         }
 
         val lines = lyrics?.takeIf { it.key == m.key && s.lyricsEnabled && it.lines.isNotEmpty() }
-        val status by IslandBus.lyricsStatus.collectAsState()
+        val status by NeolandMediaState.lyricsStatus.collectAsState()
         if (lines != null) {
             Spacer(Modifier.height(14.dp))
             KaraokeLine(lines, pos, s)
@@ -791,7 +794,7 @@ private enum class QPage { TIMER, OPTIONS }
 /** Opsi yang dipilih: aktivitasnya muncul kecil di kapsul (ketuk sekali — membesar). Aktivitas dikedepankan dan island dilipat. */
 private fun showCompact(id: String?) {
     Controls.collapse()
-    if (id != null) IslandBus.focus.value = id
+    if (id != null) NeolandUIState.focus.value = id
 }
 
 /** Dua halaman: Timer saja, lalu semua opsi. Geser untuk berpindah (arah bisa dibalik di Pengaturan). */
