@@ -17,6 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Общее состояние острова. Службы пишут сюда, капсула и приложение читают.
  * Всё живёт в одном процессе, поэтому хватает обычного синглтона.
  */
+@Deprecated("Gunakan modul spesifik di NeolandState")
 object IslandBus {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
