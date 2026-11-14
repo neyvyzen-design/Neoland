@@ -245,7 +245,7 @@ private fun AppHeader(version: String, update: UpdateState) {
     ) {
         // Как значок приложения на рабочем столе: капсула на сиреневом
         Box(Modifier.size(84.dp).clip(RoundedCornerShape(24.dp)).background(Ui.Primary), contentAlignment = Alignment.Center) {
-            Image(ImageVector.vectorResource(R.drawable.ic_launcher_foreground), null, Modifier.requiredSize(126.dp))
+            Image(ImageVector.vectorResource(R.drawable.ic_neoland_foreground), null, Modifier.requiredSize(126.dp))
         }
         Spacer(Modifier.height(14.dp))
         Text(tr("Динамический остров", "Nayland"), color = Ui.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
