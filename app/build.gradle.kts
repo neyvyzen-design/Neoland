@@ -13,8 +13,8 @@ android {
         applicationId = "com.neyvyzen.design.dynamicisland"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0-Neoland"
+        versionCode = 40
+        versionName = "2.0.0"
     }
 
     // Ключ подписи в репозитории не хранится: релизный APK собирается без подписи,

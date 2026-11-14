@@ -2,23 +2,24 @@ package com.neoland.app.core
 
 import android.app.ActivityOptions
 import android.app.PendingIntent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.media.session.MediaController
+import android.media.session.PlaybackState
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import android.telecom.TelecomManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import android.media.session.MediaController
-import android.media.session.PlaybackState
-import android.os.SystemClock
 
-/** Команды, которые капсула отдаёт системе: плеер, таймер, фонарик, громкость. */
+/** Perintah sistem dari kapsul Nayland: pemutar media, timer, senter, panggilan, clipboard, dan layar. */
 object Controls {
     @Volatile
     var mediaController: MediaController? = null
 
-    // Подставляет IslandService, пока он запущен
     var torchOn: () -> Unit = {}
     var torchOff: () -> Unit = {}
     var torchLevel: (Int) -> Unit = {}
@@ -33,32 +34,33 @@ object Controls {
         IslandBus.focus.value = null
     }
 
-    // Плеер
+    // Pemutar media
 
-    /** Своя кнопка плеера — «Нравится» или «Не нравится». */
     fun playerAction(action: String) {
-        mediaController?.transportControls?.sendCustomAction(action, null)
+        runCatching { mediaController?.transportControls?.sendCustomAction(action, null) }
     }
 
     fun playPause() {
         val c = mediaController ?: return
-        if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
-        else c.transportControls.play()
+        runCatching {
+            if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
+            else c.transportControls.play()
+        }
     }
 
     fun next() {
-        mediaController?.transportControls?.skipToNext()
+        runCatching { mediaController?.transportControls?.skipToNext() }
     }
 
     fun prev() {
-        mediaController?.transportControls?.skipToPrevious()
+        runCatching { mediaController?.transportControls?.skipToPrevious() }
     }
 
     fun seekTo(ms: Long) {
-        mediaController?.transportControls?.seekTo(ms)
+        runCatching { mediaController?.transportControls?.seekTo(ms.coerceAtLeast(0L)) }
     }
 
-    // Таймер
+    // Timer
 
     fun startTimer(minutes: Int) {
         val total = minutes.coerceIn(1, 99) * 60_000L
@@ -66,7 +68,7 @@ object Controls {
     }
 
     fun startTimerSeconds(seconds: Int) {
-        val total = seconds * 1000L
+        val total = seconds.coerceAtLeast(1) * 1000L
         IslandBus.timer.value = TimerState(total, SystemClock.elapsedRealtime() + total)
     }
 
@@ -80,7 +82,9 @@ object Controls {
     fun resumeTimer() {
         val t = IslandBus.timer.value ?: return
         val left = t.pausedLeft ?: return
-        if (!t.ringing) IslandBus.timer.value = t.copy(endAt = SystemClock.elapsedRealtime() + left, pausedLeft = null)
+        if (!t.ringing) {
+            IslandBus.timer.value = t.copy(endAt = SystemClock.elapsedRealtime() + left.coerceAtLeast(1000L), pausedLeft = null)
+        }
     }
 
     fun cancelTimer() {
@@ -88,7 +92,7 @@ object Controls {
         if (IslandBus.focus.value == "timer") collapse()
     }
 
-    // Секундомер
+    // Stopwatch
 
     fun startStopwatch() {
         IslandBus.stopwatch.value = StopwatchState(SystemClock.elapsedRealtime(), 0)
@@ -106,16 +110,26 @@ object Controls {
         if (IslandBus.focus.value == "stopwatch") collapse()
     }
 
-    // Прочее
+    // Utilitas & Aplikasi
+
+    fun copyText(context: Context, label: String, text: String): Boolean {
+        if (text.isEmpty()) return false
+        return runCatching {
+            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return false
+            cm.setPrimaryClip(ClipData.newPlainText(label, text))
+            true
+        }.getOrDefault(false)
+    }
 
     fun openApp(context: Context, pkg: String) {
+        if (pkg.isBlank()) return
         val intent = context.packageManager.getLaunchIntentForPackage(pkg) ?: return
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
         runCatching { context.startActivity(intent) }
         collapse()
     }
 
-    /** Нажать кнопку из уведомления (ответить, отклонить, открыть). */
+    /** Kirim PendingIntent dari notifikasi dengan izin background activity start untuk Android 14+. */
     fun send(context: Context, intent: PendingIntent?): Boolean {
         intent ?: return false
         return runCatching {
@@ -129,7 +143,7 @@ object Controls {
         }.isSuccess
     }
 
-    /** Отправить ответ через кнопку «Ответить» из уведомления — так же, как это делает шторка. */
+    /** Balas pesan langsung dari kartu notifikasi (mendukung Android 14+ background start). */
     fun sendReply(context: Context, action: MsgAction, text: String): Boolean {
         val clean = text.trim()
         if (clean.isEmpty() || action.inputs.isEmpty()) return false
@@ -139,11 +153,17 @@ object Controls {
             inputs.forEach { results.putCharSequence(it.resultKey, clean) }
             val fill = Intent()
             android.app.RemoteInput.addResultsToIntent(inputs, fill, results)
-            action.intent.send(context, 0, fill)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val options = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                action.intent.send(context, 0, fill, null, null, null, options.toBundle())
+            } else {
+                action.intent.send(context, 0, fill)
+            }
         }.isSuccess
     }
 
-    // Звонки: сначала кнопка из уведомления звонилки, иначе системный сервис звонков
+    // Panggilan telepon
 
     @Suppress("DEPRECATION", "MissingPermission")
     fun answerCall(context: Context, call: CallInfo) {
@@ -152,7 +172,8 @@ object Controls {
             return
         }
         if (send(context, call.answer)) return
-        val ok = runCatching { context.getSystemService(TelecomManager::class.java)!!.acceptRingingCall() }.isSuccess
+        val telecom = context.getSystemService(TelecomManager::class.java)
+        val ok = telecom != null && runCatching { telecom.acceptRingingCall() }.isSuccess
         if (!ok) showCallScreen(context, call)
     }
 
@@ -164,15 +185,13 @@ object Controls {
             return
         }
         if (send(context, if (call.incoming) call.decline else call.hangUp)) return
+        val telecom = context.getSystemService(TelecomManager::class.java)
         val ok = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-            runCatching { context.getSystemService(TelecomManager::class.java)!!.endCall() }.getOrDefault(false)
+            telecom != null &&
+            runCatching { telecom.endCall() }.getOrDefault(false)
         if (!ok) showCallScreen(context, call)
     }
 
-    /**
-     * Ответить или сбросить из острова не вышло — скорее всего, не дали разрешение «Звонки». Тогда открываем
-     * экран звонка телефона: там кнопки работают всегда. Нет и его — звонилку.
-     */
     @Suppress("MissingPermission")
     private fun showCallScreen(context: Context, call: CallInfo) {
         val telecom = context.getSystemService(TelecomManager::class.java)
@@ -182,12 +201,10 @@ object Controls {
         if (dialer.isNotEmpty()) openApp(context, dialer)
     }
 
-    /** Смахнули входящий звонок вверх — он уходит из острова (звонок продолжается, ответить можно в звонилке). */
     fun hideIncomingCall() {
         IslandBus.callHidden.value = true
     }
 
-    /** Скриншот без острова — остров на миг прячется, снимок делает Android (9+) */
     fun screenshot() {
         IslandBus.commands.tryEmit(ServiceCommand.SCREENSHOT)
     }
@@ -196,15 +213,17 @@ object Controls {
         IslandBus.commands.tryEmit(ServiceCommand.LOCK)
     }
 
-    /** Выключить службу острова, например на время банковского приложения. Включить её снова можно только в настройках */
     fun turnOffIsland() {
         IslandBus.commands.tryEmit(ServiceCommand.TURN_OFF)
     }
 
     fun openCamera(context: Context) {
-        runCatching {
-            context.startActivity(Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
+        val primary = Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { context.startActivity(primary) }.isSuccess) return
+        val secure = Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(secure) }
     }
 
     @Suppress("MissingPermission")
@@ -212,15 +231,14 @@ object Controls {
         if (call.key == TEST_CALL) return
         if (send(context, call.open)) return
         val telecom = context.getSystemService(TelecomManager::class.java)
-        if (runCatching { telecom?.showInCallScreen(false) }.isSuccess && telecom != null) return
+        if (telecom != null && runCatching { telecom.showInCallScreen(false) }.isSuccess) return
         if (call.pkg.isNotEmpty()) openApp(context, call.pkg)
     }
 
-    /** Пробный входящий звонок из приложения: кнопки работают, через 20 секунд он пропадает сам. */
     fun showTestCall() {
         val now = System.currentTimeMillis()
         IslandBus.calls.value = IslandBus.calls.value +
-            (TEST_CALL to CallInfo(TEST_CALL, "", tr("Анна", "Anna"), null, true, now, now, null, null, null, null))
+            (TEST_CALL to CallInfo(TEST_CALL, "", tr("Анна", "Anna", "Anna"), null, true, now, now, null, null, null, null))
         IslandBus.scope.launch {
             delay(20_000)
             IslandBus.calls.value = IslandBus.calls.value - TEST_CALL
@@ -229,14 +247,17 @@ object Controls {
 
     const val TEST_CALL = "test-call"
 
-    /** Пробная навигация: широкая плашка, потом капсула; через 10 секунд пропадает сама, даже если выйти из приложения. */
     fun showTestLive(context: Context) {
         val live = LiveInfo(
             key = TEST_LIVE, pkg = context.packageName, kind = LiveKind.NAV,
-            title = tr("300 м", "300 m"), text = tr("Поверните направо на Тверскую улицу", "Turn right onto Main Street"), sub = "",
+            title = tr("300 м", "300 m", "300 m"),
+            text = tr("Поверните направо на Тверскую улицу", "Turn right onto Main Street", "Belok kanan ke Jalan Utama"),
+            sub = "",
             icon = com.neoland.app.service.NotificationParser.icon(context, context.packageName), art = null,
             postTime = System.currentTimeMillis(), open = null,
-            distance = tr("300 м", "300 m"), eta = tr("Прибытие в 18:42 · 12 мин · 4,2 км", "Arrive 18:42 · 12 min · 4.2 km"), turn = Turn.RIGHT,
+            distance = tr("300 м", "300 m", "300 m"),
+            eta = tr("Прибытие в 18:42 · 12 мин · 4,2 км", "Arrive 18:42 · 12 min · 4.2 km", "Tiba 18.42 · 12 mnt · 4,2 km"),
+            turn = Turn.RIGHT,
             expiresAt = System.currentTimeMillis() + TEST_LIVE_MS,
         )
         IslandBus.live.value = IslandBus.live.value + (TEST_LIVE to live)
@@ -250,7 +271,6 @@ object Controls {
     private const val TEST_LIVE_MS = 10_000L
     const val TEST_LIVE = "test-live"
 
-    /** Куда выводится звук: системная панель громкости с выбором устройства. */
     fun openOutput(context: Context) {
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             Intent(Settings.Panel.ACTION_VOLUME)
@@ -260,5 +280,4 @@ object Controls {
         runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         collapse()
     }
-
 }

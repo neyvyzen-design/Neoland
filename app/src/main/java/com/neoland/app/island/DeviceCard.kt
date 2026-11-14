@@ -20,9 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -33,9 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.neoland.app.core.Lang
 import com.neoland.app.core.Tints
 import com.neoland.app.core.tr
-import kotlinx.coroutines.delay
 
-/** Снимок состояния телефона: память, накопитель, температура батареи и тепловой статус системы */
 data class DeviceSnapshot(
     val ramUsed: Long,
     val ramTotal: Long,
@@ -43,19 +38,28 @@ data class DeviceSnapshot(
     val diskTotal: Long,
     val batteryTempC: Float?,
     val thermal: String?,
+    val batteryPct: Int = -1,
+    val isCharging: Boolean = false,
 )
 
 object DeviceStats {
     fun read(context: Context): DeviceSnapshot {
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val am = runCatching { context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager }.getOrNull()
         val mi = ActivityManager.MemoryInfo()
-        am?.getMemoryInfo(mi)
+        runCatching { am?.getMemoryInfo(mi) }
         val stat = runCatching { StatFs(Environment.getDataDirectory().path) }.getOrNull()
         val diskTotal = stat?.totalBytes ?: 0L
         val diskFree = stat?.availableBytes ?: 0L
-        val intent: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val intent: Intent? = runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull()
         val rawTemp = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE) ?: Int.MIN_VALUE
         val temp = if (rawTemp == Int.MIN_VALUE) null else rawTemp / 10f
+        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100)?.coerceAtLeast(1) ?: 100
+        val pct = if (level >= 0) ((level * 100f) / scale).toInt().coerceIn(0, 100) else -1
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
         return DeviceSnapshot(
             ramUsed = (mi.totalMem - mi.availMem).coerceAtLeast(0L),
             ramTotal = mi.totalMem,
@@ -63,30 +67,41 @@ object DeviceStats {
             diskTotal = diskTotal,
             batteryTempC = temp,
             thermal = thermalLabel(context),
+            batteryPct = pct,
+            isCharging = charging,
         )
     }
 
     private fun thermalLabel(context: Context): String? {
         if (Build.VERSION.SDK_INT < 29) return null
-        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return null
-        return when (pm.currentThermalStatus) {
-            PowerManager.THERMAL_STATUS_NONE -> tr("Норма", "Normal", "Normal")
-            PowerManager.THERMAL_STATUS_LIGHT -> tr("Тепло", "Light", "Hangat")
-            PowerManager.THERMAL_STATUS_MODERATE -> tr("Горячо", "Moderate", "Panas")
-            PowerManager.THERMAL_STATUS_SEVERE -> tr("Очень горячо", "Severe", "Sangat panas")
-            else -> tr("Критично", "Critical", "Kritis")
-        }
+        val pm = runCatching { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }.getOrNull() ?: return null
+        return runCatching {
+            when (pm.currentThermalStatus) {
+                PowerManager.THERMAL_STATUS_NONE -> tr("Норма", "Normal", "Normal")
+                PowerManager.THERMAL_STATUS_LIGHT -> tr("Тепло", "Light", "Hangat")
+                PowerManager.THERMAL_STATUS_MODERATE -> tr("Горячо", "Moderate", "Panas")
+                PowerManager.THERMAL_STATUS_SEVERE -> tr("Очень горячо", "Severe", "Sangat panas")
+                else -> tr("Критично", "Critical", "Kritis")
+            }
+        }.getOrNull()
     }
 }
 
-/**
- * 1.7.9: карточка «Устройство» в раскрытом пустом острове. Данные читаются раз в две секунды,
- * только пока карточка на экране.
- */
+/** Nayland 2.0: Monitor perangkat real-time (RAM, Penyimpanan, Baterai %, Suhu & Status Termal). */
 @Composable
 fun DeviceCard(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val d = DeviceLive.snap.value ?: DeviceStats.read(context)
+    val temp = d.batteryTempC
+    val tempColor = when {
+        temp == null -> Color.White.copy(alpha = 0.75f)
+        temp >= 42f -> Color(0xFFFF453A)
+        temp >= 38f -> Tints.Orange
+        else -> Tints.Green
+    }
+    val pctLabel = if (d.batteryPct >= 0) "${d.batteryPct}%${if (d.isCharging) " ⚡" else ""} · " else ""
+    val tempLabel = if (temp == null) "-" else String.format(Lang.locale, "%.1f°C", temp)
+
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.06f)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -94,10 +109,9 @@ fun DeviceCard(modifier: Modifier = Modifier) {
         MeterRow(tr("Память", "RAM", "RAM"), d.ramUsed, d.ramTotal, Tints.Blue)
         MeterRow(tr("Накопитель", "Storage", "Penyimpanan"), d.diskUsed, d.diskTotal, Tints.Green)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            val temp = d.batteryTempC
             Text(
-                tr("Батарея ", "Battery ", "Baterai ") + (if (temp == null) "-" else String.format(Lang.locale, "%.1f°C", temp)),
-                color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp, maxLines = 1,
+                tr("Батарея ", "Battery ", "Baterai ") + pctLabel + tempLabel,
+                color = tempColor, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1,
             )
             Text(
                 tr("Нагрев ", "Thermal ", "Termal ") + (d.thermal ?: "-"),
@@ -110,9 +124,10 @@ fun DeviceCard(modifier: Modifier = Modifier) {
 @Composable
 private fun MeterRow(label: String, used: Long, total: Long, color: Color) {
     val fraction = if (total > 0L) (used.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+    val pct = (fraction * 100).toInt()
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 1)
+            Text("$label ($pct%)", color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1)
             Text(
                 NetSpeed.bytesText(used, Lang.locale) + " / " + NetSpeed.bytesText(total, Lang.locale),
                 color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1,

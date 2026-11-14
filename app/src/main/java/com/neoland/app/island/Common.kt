@@ -1,16 +1,14 @@
 package com.neoland.app.island
 
-import kotlin.math.roundToInt
-import kotlin.math.ln
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
@@ -22,9 +20,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,36 +44,36 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.drawOutline
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.neoland.app.core.IslandBus
 import com.neoland.app.core.Tints
 import com.neoland.app.core.Turn
 import com.neoland.app.data.AccentMode
@@ -84,12 +82,12 @@ import com.neoland.app.data.IslandSettings
 import com.neoland.app.data.SettingsRepo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import com.neoland.app.core.IslandBus
-import kotlin.math.pow
-import kotlin.math.sqrt
 import kotlinx.coroutines.launch
+import kotlin.math.ln
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
-/** Анимация формы острова по настройкам «Стиль раскрытия», «Длительность» и «Упругость». */
 fun <T> islandSpec(s: IslandSettings): FiniteAnimationSpec<T> {
     val damping = if (s.reduceEffects) 1f else s.elasticity.damping
     return when (s.expandStyle) {
@@ -104,10 +102,6 @@ fun <T> islandSpec(s: IslandSettings): FiniteAnimationSpec<T> {
     }
 }
 
-/**
- * Та же анимация формы, но с отдельной скоростью в процентах (100 — как задано, больше — быстрее).
- * Так работают «Скорость появления» и «Скорость ухода»: жёсткость пружины растёт как квадрат скорости.
- */
 fun <T> islandSpec(s: IslandSettings, speedPercent: Int): FiniteAnimationSpec<T> = islandSpec(withSpeed(s, speedPercent))
 
 private fun withSpeed(s: IslandSettings, speedPercent: Int): IslandSettings {
@@ -123,30 +117,20 @@ private fun withSpeed(s: IslandSettings, speedPercent: Int): IslandSettings {
     return s.copy(durationPercent = (t * 100f).roundToInt().coerceIn(0, 100))
 }
 
-/**
- * Пружины в духе SwiftUI: жёсткость = (2π / длительность)², затухание = 1 − bounce.
- * Ползунок «Длительность» масштабирует жёсткость; при «Уменьшить эффекты» отскока нет.
- */
 private fun <T> iosSpring(s: IslandSettings, stiffness: Float, damping: Float): FiniteAnimationSpec<T> =
     spring(
         dampingRatio = if (s.reduceEffects) 1f else damping,
         stiffness = stiffness * animStiffness(s) / VIDEO_STIFFNESS,
     )
 
-/** Проявление и таяние содержимого острова: та же скорость, что у формы, но быстрее и без отскока. */
 fun <T> fadeSpec(s: IslandSettings): FiniteAnimationSpec<T> = when (s.expandStyle) {
     ExpandStyle.INSTANT -> snap()
     ExpandStyle.SMOOTH -> tween(animDurationMs(s) / 2)
     else -> spring(stiffness = animStiffness(s) * 6f)
 }
 
-/** Жёсткость пружины в ролике (damping 12, stiffness 190, mass 0.85): остров перетекает за полсекунды с перелётом. */
 private const val VIDEO_STIFFNESS = 223f
 
-/**
- * «Длительность»: 0% — быстрее всего, 100% — медленнее всего. По умолчанию (35%) — ровно как в ролике;
- * в обе стороны жёсткость меняется в разы, поэтому ползунок заметен по всей длине.
- */
 fun animStiffness(s: IslandSettings): Float {
     val t = s.durationPercent.coerceIn(0, 100) / 100f
     return if (t <= 0.35f) {
@@ -156,15 +140,12 @@ fun animStiffness(s: IslandSettings): Float {
     }
 }
 
-/** Во сколько раз всё медленнее, чем в ролике: по ней же идут проявление содержимого и размытие. */
 fun motionScale(s: IslandSettings): Float = if (s.expandStyle == ExpandStyle.INSTANT) 0.5f else sqrt(VIDEO_STIFFNESS / animStiffness(s))
 
-/** Плавность из ролика: быстро в начале и долго мягко дотягивает (cubic-bezier 0.16, 1, 0.3, 1). */
 val ExpoOut = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
 fun animDurationMs(s: IslandSettings): Int = 160 + s.durationPercent.coerceIn(0, 100) * 6
 
-/** Текущее время (elapsedRealtime) с обновлением раз в [periodMs]; пока экран погашен — не обновляется. */
 @Composable
 fun rememberNow(periodMs: Long, active: Boolean = true): Long {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
@@ -172,51 +153,39 @@ fun rememberNow(periodMs: Long, active: Boolean = true): Long {
         while (active) {
             if (!IslandBus.screenOn.value) IslandBus.screenOn.first { it }
             now = SystemClock.elapsedRealtime()
-            delay(periodMs)
+            delay(periodMs.coerceAtLeast(50L))
         }
     }
     return now
 }
 
-/**
- * Время для живых украшений — эквалайзера, свечения: обновляется с частотой из «Эффектов» (по умолчанию 60 раз
- * в секунду) и только пока горит экран. Музыка играет часами, и с полной частотой экрана остров перерисовывался бы
- * до 120 раз в секунду всё это время — телефон грелся. 60 кадров на глаз так же плавно, а работы вдвое меньше.
- * Между кадрами корутина спит почти до следующего нужного, а не просыпается на каждом кадре экрана.
- * Читать значение нужно при рисовании, тогда меняется только картинка.
- */
 @Composable
 fun rememberFxClock(active: Boolean): State<Long> {
     val time = remember { mutableLongStateOf(0L) }
     LaunchedEffect(active) {
-        var last = 0L
+        var last = -1000L
         while (active) {
             if (!IslandBus.screenOn.value) IslandBus.screenOn.first { it }
             val fps = SettingsRepo.current.fxRate.fps
             val step = if (fps > 0) 1000L / fps else 0L
-            // Кадр экрана раньше срока пропускаем: на 120 Гц при 60 кадрах рисуется каждый второй
             withFrameMillis { t ->
-                if (t - last >= step - 3) {
+                if (t - last >= (step - 3L).coerceAtLeast(0L)) {
                     time.longValue = t
                     last = t
                 }
             }
-            if (step > 0) delay(step - 6)
+            if (step > 0L) delay((step - 6L).coerceAtLeast(1L))
         }
     }
     return time
 }
 
-/**
- * Значение «туда-обратно» за [halfMs] в каждую сторону с плавным разгоном и торможением — как
- * infiniteRepeatable(tween(halfMs, FastOutSlowInEasing), RepeatMode.Reverse), но от общего времени [t].
- */
 fun pingPong(t: Long, halfMs: Int): Float {
-    val p = (t % (2L * halfMs)).toFloat() / halfMs
+    val safeHalf = halfMs.coerceAtLeast(1)
+    val p = (t % (2L * safeHalf)).toFloat() / safeHalf
     return FastOutSlowInEasing.transform(if (p < 1f) p else 2f - p)
 }
 
-/** То же для настенных часов (System.currentTimeMillis). */
 @Composable
 fun rememberWallNow(periodMs: Long): Long {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -224,7 +193,7 @@ fun rememberWallNow(periodMs: Long): Long {
         while (true) {
             if (!IslandBus.screenOn.value) IslandBus.screenOn.first { it }
             now = System.currentTimeMillis()
-            delay(periodMs)
+            delay(periodMs.coerceAtLeast(100L))
         }
     }
     return now
@@ -238,18 +207,12 @@ fun rememberHaptic(): () -> Unit {
     }
 }
 
-/**
- * Звуковая волна из тонких полосок, как в острове iPhone. Полоски тоньше промежутков и качаются спокойно:
- * толстые и быстрые, как писали в комментариях, смотрятся плохо, особенно под медленную музыку. У каждой полоски
- * две свои скорости, поэтому движение не механическое. Высоты читаются только при рисовании:
- * кадр анимации перерисовывает полоски, а не пересобирает остров.
- */
 @Composable
 fun Equalizer(color: Color, playing: Boolean, animate: Boolean, modifier: Modifier = Modifier, bars: Int = 5) {
     val moving = playing && animate
     val time = rememberFxClock(moving)
     Canvas(modifier) {
-        // Промежуток в 1,6 раза шире полоски
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
         val w = size.width / (bars + (bars - 1) * 1.6f)
         for (i in 0 until bars) {
             val h = when {
@@ -271,21 +234,23 @@ fun Equalizer(color: Color, playing: Boolean, animate: Boolean, modifier: Modifi
     }
 }
 
-/** Батарейка как в iOS: заливка по уровню заряда и «носик» справа. */
 @Composable
 fun BatteryGlyph(level: Int, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
         val nub = size.height * 0.16f
         val bodyW = size.width - nub - 1.5.dp.toPx()
+        if (bodyW <= 1f) return@Canvas
         val r = size.height * 0.32f
         drawRoundRect(color.copy(alpha = 0.3f), size = Size(bodyW, size.height), cornerRadius = CornerRadius(r))
         val inset = size.height * 0.14f
-        val fillW = (bodyW - inset * 2) * (level.coerceIn(0, 100) / 100f)
-        if (fillW > 0f) {
+        val innerMaxW = (bodyW - inset * 2).coerceAtLeast(0f)
+        val fillW = innerMaxW * (level.coerceIn(0, 100) / 100f)
+        if (fillW > 0f && size.height > inset * 2) {
             drawRoundRect(
                 color,
                 topLeft = Offset(inset, inset),
-                size = Size(fillW.coerceAtLeast(r * 0.5f), size.height - inset * 2),
+                size = Size(fillW.coerceAtLeast(r * 0.5f).coerceAtMost(innerMaxW), size.height - inset * 2),
                 cornerRadius = CornerRadius(r * 0.7f),
             )
         }
@@ -308,11 +273,14 @@ fun ProgressRing(
 ) {
     Canvas(modifier) {
         val px = stroke.toPx()
-        val inset = px / 2
+        if (size.width <= px || size.height <= px) return@Canvas
+        val inset = px / 2f
         val arcSize = Size(size.width - px, size.height - px)
         drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(px))
-        drawArc(color, -90f, 360f * progress.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize,
-            style = Stroke(px, cap = StrokeCap.Round))
+        drawArc(
+            color, -90f, 360f * progress.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize,
+            style = Stroke(px, cap = StrokeCap.Round),
+        )
     }
 }
 
@@ -354,7 +322,6 @@ fun RoundButton(
     onClick: () -> Unit,
 ) {
     val haptic = rememberHaptic()
-    // Кнопка чуть проседает под пальцем, как на iPhone
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(dampingRatio = 0.5f, stiffness = 600f), label = "press")
@@ -399,15 +366,7 @@ fun PillButton(
 }
 
 /**
- * Liquid Glass по образцу iOS 26: стекло, которое ловит и преломляет свет. Настоящего преломления
- * того, что лежит под островом, Android не даёт (поверх экрана нельзя «заглянуть» в чужое окно),
- * поэтому рисуется всё, что видно у настоящего стекла:
- *  - дымчатое полупрозрачное тело, светлее чёрной подложки, плотнее и темнее к низу (толщина);
- *  - пятно света сверху и каустика — светлое пятно у противоположного края, где свет собрало стекло;
- *  - мягкое свечение вдоль кромки и яркая линза-кромка: блики в верхнем левом и нижнем правом углу;
- *  - тонкая цветная дисперсия по краю (голубая и розовая каймы);
- *  - блики живут: при наклоне телефона ([tilt] от −1 до 1) они сдвигаются, а при смене содержимого
- *    по стеклу пробегает световая полоса ([sheen] от 0 до 1, иначе скрыта).
+ * Permukaan Liquid Glass aman terhadap ukuran 0dp saat animasi buka/tutup pegas (mencegah crash radius <= 0).
  */
 fun Modifier.glassSurface(
     shape: Shape,
@@ -418,10 +377,12 @@ fun Modifier.glassSurface(
 ): Modifier = drawWithCache {
     val w = size.width
     val h = size.height
+    if (w <= 1f || h <= 1f) {
+        return@drawWithCache onDrawWithContent { drawContent() }
+    }
     val a = opacity.coerceIn(0.3f, 0.95f)
     val outline = shape.createOutline(size, layoutDirection, this)
     val dp = 1.dp.toPx()
-    // Всё, что не зависит от наклона, собирается один раз на размер, а кадр только рисует
     val veil = Brush.verticalGradient(
         0f to Color.White.copy(alpha = 0.20f),
         0.5f to Color.White.copy(alpha = 0.05f),
@@ -437,28 +398,25 @@ fun Modifier.glassSurface(
     onDrawWithContent {
         val t = tilt().coerceIn(-1f, 1f)
 
-        // Тело стекла
         drawRect(base.copy(alpha = a * 0.8f))
         drawRect(veil)
         drawRect(shade)
 
-        // Свет сверху и каустика у противоположного края
         drawRect(
             Brush.radialGradient(
                 listOf(Color.White.copy(alpha = 0.26f), Color.Transparent),
                 center = Offset(w * (0.22f + 0.30f * t), 0f),
-                radius = w * 0.55f,
+                radius = (w * 0.55f).coerceAtLeast(1f),
             ),
         )
         drawRect(
             Brush.radialGradient(
                 listOf(Color.White.copy(alpha = 0.20f), Color.Transparent),
                 center = Offset(w * (0.80f + 0.15f * t), h),
-                radius = w * 0.45f,
+                radius = (w * 0.45f).coerceAtLeast(1f),
             ),
         )
 
-        // Бегущий блик при смене содержимого
         val shine = sheen()
         if (shine in 0f..1f) {
             val x = -w * 0.3f + w * 1.6f * shine
@@ -468,17 +426,15 @@ fun Modifier.glassSurface(
                     0.5f to Color.White.copy(alpha = 0.24f),
                     1f to Color.Transparent,
                     start = Offset(x - w * 0.25f, 0f),
-                    end = Offset(x + w * 0.25f, h * 0.6f),
+                    end = Offset(x + w * 0.25f, (h * 0.6f).coerceAtLeast(1f)),
                 ),
             )
         }
 
-        // Свечение вдоль кромки: полоски убывающей яркости складываются в плавный спад внутрь
         for (stroke in glow) drawOutline(outline, glowColor, style = stroke)
 
         drawContent()
 
-        // Кромка-линза: яркая слева сверху и справа снизу, посередине почти гаснет; при наклоне сдвигается
         val shift = t * w * 0.35f
         val rim = Brush.linearGradient(
             0f to Color.White.copy(alpha = 0.95f),
@@ -487,28 +443,22 @@ fun Modifier.glassSurface(
             0.72f to Color.White.copy(alpha = 0.22f),
             1f to Color(0xFFD6E8FF).copy(alpha = 0.9f),
             start = Offset(-shift, 0f),
-            end = Offset(w - shift, h),
+            end = Offset(w - shift, h.coerceAtLeast(1f)),
         )
         drawOutline(outline, rim, alpha = 0.35f, style = wideRim)
         drawOutline(outline, rim, style = thinRim)
-        // Дисперсия: свет раскладывается на цвета по краям
         translate(-dp, -dp) { drawOutline(outline, Color(0xFF7DF9FF).copy(alpha = 0.20f), style = fringe) }
         translate(dp, dp) { drawOutline(outline, Color(0xFFFF8AD8).copy(alpha = 0.18f), style = fringe) }
     }
 }
 
-/**
- * Знак бесконтактной оплаты (Contactless Indicator, EMVCo) — тот самый, что печатают на терминалах
- * и картах: четыре дуги, растущие вправо. Как в ролике: дуги загораются по очереди изнутри наружу,
- * полный круг — 0,8 с.
- */
 @Composable
 fun ContactlessWaves(color: Color, animate: Boolean, modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "waves")
     val moving = if (animate) transition.animateFloat(0f, 1f, infiniteRepeatable(tween(800, easing = LinearEasing)), label = "phase") else null
     Canvas(modifier) {
+        if (size.minDimension <= 0f) return@Canvas
         val phase = moving?.value ?: 0.6f
-        // Сетка 24×24, как у значка в ролике: центр дуг слева посередине
         val k = size.minDimension / 24f
         val c = Offset(4f * k, size.height / 2)
         for (i in 0..3) {
@@ -527,7 +477,6 @@ fun ContactlessWaves(color: Color, animate: Boolean, modifier: Modifier = Modifi
     }
 }
 
-/** Зелёный круг выпрыгивает с пружиной, следом прорисовывается галочка — как «Оплачено» в ролике. */
 @Composable
 fun CheckBadge(color: Color, animate: Boolean, modifier: Modifier = Modifier) {
     val pop = remember { Animatable(if (animate) 0f else 1f) }
@@ -540,6 +489,7 @@ fun CheckBadge(color: Color, animate: Boolean, modifier: Modifier = Modifier) {
     }
     Canvas(modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) {
         val w = size.width
+        if (w <= 0f) return@Canvas
         drawCircle(color)
         val tick = Path().apply {
             moveTo(w * 0.31f, w * 0.513f)
@@ -549,15 +499,13 @@ fun CheckBadge(color: Color, animate: Boolean, modifier: Modifier = Modifier) {
         val part = Path()
         val measure = PathMeasure()
         measure.setPath(tick, false)
-        measure.getSegment(0f, measure.length * draw.value, part, true)
-        drawPath(part, Color.White, style = Stroke(width = w * 0.093f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        if (measure.length > 0f) {
+            measure.getSegment(0f, measure.length * draw.value, part, true)
+            drawPath(part, Color.White, style = Stroke(width = w * 0.093f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
     }
 }
 
-/**
- * Строка, которая уменьшает шрифт (от [max] до [min]), если не помещается, — вместо многоточия.
- * Многоточие остаётся на крайний случай: очень длинный текст или крупный шрифт Android.
- */
 @Composable
 fun FitText(
     text: String,
@@ -573,6 +521,7 @@ fun FitText(
     BoxWithConstraints(modifier) {
         val room = constraints.maxWidth
         val size = remember(text, room, max, min, base) {
+            if (room <= 0 || text.isEmpty()) return@remember min
             var sz = max.value
             while (sz > min.value &&
                 measurer.measure(text, base.copy(fontSize = sz.sp, fontWeight = weight), maxLines = 1).size.width > room
@@ -581,13 +530,13 @@ fun FitText(
             }
             sz.sp
         }
-        // Тот же стиль, по которому мерили: шрифт темы (Inter) и его межбуквенный интервал
-        Text(text, color = color, fontSize = size, fontWeight = weight, maxLines = 1, softWrap = false,
-            overflow = TextOverflow.Ellipsis, style = base)
+        Text(
+            text, color = color, fontSize = size, fontWeight = weight, maxLines = 1, softWrap = false,
+            overflow = TextOverflow.Ellipsis, style = base,
+        )
     }
 }
 
-/** Цвет кнопок карточки уведомления по настройке: сиреневый, системный, из аватара или свой. */
 @Composable
 fun rememberAccent(s: IslandSettings, adaptive: Color? = null): Color {
     val context = LocalContext.current
@@ -601,7 +550,6 @@ fun resolveAccent(context: android.content.Context, s: IslandSettings, adaptive:
     AccentMode.SYSTEM -> systemAccent(context) ?: Tints.Lavender
 }
 
-/** Акцент обоев (Material You) — светлый тон 200, хорошо читается на чёрном. Только Android 12+. */
 fun systemAccent(context: android.content.Context): Color? =
     if (android.os.Build.VERSION.SDK_INT >= 31) {
         runCatching { Color(context.getColor(android.R.color.system_accent1_200)) }.getOrNull()
@@ -609,19 +557,13 @@ fun systemAccent(context: android.content.Context): Color? =
         null
     }
 
-/** Чем рисовать поверх [accent]: чёрным на светлом цвете, белым на тёмном. */
 fun onAccent(accent: Color): Color = if (accent.luminance() > 0.5f) Color(0xFF1B1830) else Color.White
 
-/**
- * Стрелка манёвра, как в навигаторе: прямо, налево, направо или разворот. Рисуется линией
- * со скруглёнными концами, поэтому одинаково чёткая в капсуле и в раскрытом виде.
- */
 @Composable
 fun TurnArrow(turn: Turn, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
+        if (size.minDimension <= 0f) return@Canvas
         val k = size.minDimension / 100f
-        fun p(x: Float, y: Float) = Offset(x * k, y * k)
-        // Рисуем «направо», налево — зеркало по горизонтали
         val flip = turn == Turn.LEFT
         fun x(v: Float) = if (flip) 100f - v else v
         val body = Path()
@@ -632,7 +574,6 @@ fun TurnArrow(turn: Turn, color: Color, modifier: Modifier = Modifier) {
                 head.moveTo(30 * k, 40 * k); head.lineTo(50 * k, 18 * k); head.lineTo(70 * k, 40 * k)
             }
             Turn.RIGHT, Turn.LEFT -> {
-                // Как значок поворота в ролике: вверх, скругление и вправо, наконечник — уголком
                 body.moveTo(x(25f) * k, 92 * k); body.lineTo(x(25f) * k, 50 * k)
                 body.quadraticBezierTo(x(25f) * k, 33.3f * k, x(41.7f) * k, 33.3f * k); body.lineTo(x(79f) * k, 33.3f * k)
                 head.moveTo(x(62.5f) * k, 16.7f * k); head.lineTo(x(79f) * k, 33.3f * k); head.lineTo(x(62.5f) * k, 50 * k)

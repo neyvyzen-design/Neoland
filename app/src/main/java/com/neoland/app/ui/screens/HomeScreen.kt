@@ -151,7 +151,7 @@ fun HomeScreen(open: (Screen) -> Unit) {
     val (perms, _) = rememberPermState()
     val missing = perms.missing
 
-    Page(tr("Динамический остров", "Dynamic Island")) {
+    Page(tr("Динамический остров", "Nayland")) {
         IslandPreview()
         UpdateSection()
 

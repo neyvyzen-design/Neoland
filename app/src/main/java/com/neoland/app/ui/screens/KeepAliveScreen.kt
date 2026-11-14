@@ -60,7 +60,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                 GroupItem(
                     Pos.Last, Icons.Rounded.RocketLaunch, tr("Автозапуск", "Autostart"),
                     tr("Включите для «Динамического острова» — тогда он запустится сам после перезагрузки и закрытия",
-                        "Turn it on for Dynamic Island — then it starts by itself after a reboot or being closed"),
+                        "Turn it on for Nayland — then it starts by itself after a reboot or being closed"),
                     onClick = { Perms.openAutostart(context) }, color = Tile.Orange,
                 ) { Arrow() }
             }
@@ -73,7 +73,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
         Group {
             GroupItem(
                 Pos.First, Icons.Rounded.Lock, tr("Спец. возможности", "Accessibility"),
-                tr("Выключите и снова включите службу «Динамический остров»", "Turn the Dynamic Island service off and on again"),
+                tr("Выключите и снова включите службу «Динамический остров»", "Turn the Nayland service off and on again"),
                 onClick = { Perms.openAccessibility(context) }, color = Tile.Blue,
             ) { Arrow() }
             AppDetailsItem(Pos.Last)
@@ -105,29 +105,29 @@ private fun batteryHint(v: Vendor): String = when (v) {
         "Battery → Unrestricted, and remove the island from Sleeping apps")
     Vendor.OPPO -> tr("«Использование батареи» → разрешите работу в фоне", "Battery usage → allow background activity")
     else -> tr("Найдите «Динамический остров» и выберите «Не оптимизировать» или «Без ограничений»",
-        "Find Dynamic Island and choose “Don't optimize” or “Unrestricted”")
+        "Find Nayland and choose “Don't optimize” or “Unrestricted”")
 }
 
 private fun lockHint(v: Vendor): String = when (v) {
     Vendor.XIAOMI -> tr(
         "Откройте недавние приложения, зажмите карточку «Динамический остров» и нажмите на замок. " +
             "Закреплённое приложение HyperOS и MIUI не закрывают, даже когда вы чистите недавние.",
-        "Open recent apps, long-press the Dynamic Island card and tap the lock. HyperOS and MIUI don't close a " +
+        "Open recent apps, long-press the Nayland card and tap the lock. HyperOS and MIUI don't close a " +
             "locked app, even when you clear recent apps.",
     )
     Vendor.OPPO -> tr(
         "Откройте недавние приложения, нажмите «⋮» над карточкой «Динамический остров» (или потяните её вниз) " +
             "и выберите «Заблокировать».",
-        "Open recent apps, tap “⋮” above the Dynamic Island card (or pull it down) and choose “Lock”.",
+        "Open recent apps, tap “⋮” above the Nayland card (or pull it down) and choose “Lock”.",
     )
     Vendor.SAMSUNG -> tr(
         "Откройте недавние приложения, нажмите на значок над карточкой «Динамический остров» и выберите «Не закрывать».",
-        "Open recent apps, tap the icon above the Dynamic Island card and choose “Keep open”.",
+        "Open recent apps, tap the icon above the Nayland card and choose “Keep open”.",
     )
     else -> tr(
         "Откройте недавние приложения и потяните карточку «Динамический остров» вниз или зажмите её — " +
             "появится замок. Закреплённое приложение не закрывается, когда вы чистите недавние.",
-        "Open recent apps and pull the Dynamic Island card down or long-press it — a lock appears. A locked app " +
+        "Open recent apps and pull the Nayland card down or long-press it — a lock appears. A locked app " +
             "isn't closed when you clear recent apps.",
     )
 }

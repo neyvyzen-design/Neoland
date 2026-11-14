@@ -71,7 +71,7 @@ fun BanksScreen(onBack: () -> Unit) {
             )
             GroupItem(
                 Pos.Last, Icons.Rounded.Lock, tr("Включить остров", "Turn the island on"),
-                tr("Откроются спец. возможности — «Динамический остров» → включить", "Opens Accessibility — Dynamic Island → turn on"),
+                tr("Откроются спец. возможности — «Динамический остров» → включить", "Opens Accessibility — Nayland → turn on"),
                 color = Tile.Green, onClick = { Perms.openAccessibility(context) },
             ) { Arrow() }
         }

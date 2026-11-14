@@ -13,7 +13,7 @@ import com.neoland.app.core.StopwatchState
 import com.neoland.app.core.TimerState
 import com.neoland.app.core.TorchState
 
-/** То, что сейчас может показывать остров. Короткие (transient) не раскрываются и не уходят в пузырь. */
+/** Aktivitas yang dapat ditampilkan kapsul Nayland. */
 sealed class Act(val id: String, val transient: Boolean = false) {
     open val pkg: String? get() = null
 
@@ -38,14 +38,12 @@ sealed class Act(val id: String, val transient: Boolean = false) {
         override val pkg: String get() = l.pkg
     }
     data class ChargingA(val b: BatteryInfo) : Act("charging")
-    /** Оплата телефоном: ждём терминал. Не раскрывается и не уходит в пузырь */
     data class PayA(val p: PayReady) : Act("pay", transient = true) {
         override val pkg: String get() = p.pkg
     }
     data class AlarmA(val a: AlarmInfo) : Act("alarm") {
         override val pkg: String? get() = a.pkg
     }
-    /** 1.7.17: Kalkulator, Kecepatan, Perangkat — aktivitas live dari halaman opsi */
     data object CalcA : Act("calc")
     data object NetA : Act("net")
     data object DeviceA : Act("device")

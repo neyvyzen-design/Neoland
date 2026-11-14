@@ -34,7 +34,7 @@ private val idText = mapOf(
     "Position and size" to "Posisi dan ukuran", "Horizontal" to "Posisi horizontal",
     "Top offset" to "Jarak dari atas",
     "Width" to "Lebar", "Height" to "Tinggi", "Center" to "Tengah",
-    "About" to "Tentang", "About the island" to "Tentang Dynamic Island",
+    "About" to "Tentang", "About the island" to "Tentang Nayland",
     "What the island shows" to "Yang ditampilkan island", "Dynamic cards" to "Kartu dinamis",
     "Music, calls, timers, flashlight, navigation" to "Musik, panggilan, timer, senter, navigasi",
     "Notifications" to "Notifikasi", "App messages with replies right in the island" to "Pesan aplikasi dengan balasan langsung di island",
@@ -123,7 +123,7 @@ private val idText = mapOf(
     ,"Expand the capsule, up — collapse" to "Perluas kapsul, geser ke atas untuk menutup"
     ,"Expansion style" to "Gaya perluasan"
     ,"Experimental" to "Eksperimental"
-    ,"Find Dynamic Island and choose “Don't optimize” or “Unrestricted”" to "Cari Dynamic Island lalu pilih “Jangan optimalkan” atau “Tanpa batasan”"
+    ,"Find Nayland and choose “Don't optimize” or “Unrestricted”" to "Cari Nayland lalu pilih “Jangan optimalkan” atau “Tanpa batasan”"
     ,"First turn on the service in Accessibility" to "Aktifkan layanan terlebih dahulu di Aksesibilitas"
     ,"Flashlight controls" to "Kontrol senter"
     ,"From the open app" to "Dari aplikasi yang sedang dibuka"

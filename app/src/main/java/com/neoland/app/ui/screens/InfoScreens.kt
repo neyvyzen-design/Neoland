@@ -79,7 +79,7 @@ fun InstructionScreen(onBack: () -> Unit) {
             tr(
                 "Откройте «Настройки → Спец. возможности → Установленные приложения → Динамический остров» и включите службу. " +
                     "Только такая служба может рисовать поверх строки состояния, рядом с камерой.",
-                "Open Settings → Accessibility → Installed apps → Dynamic Island and turn the service on. Only such a " +
+                "Open Settings → Accessibility → Installed apps → Nayland and turn the service on. Only such a " +
                     "service can draw over the status bar, next to the camera.",
             ))
         Step(2, tr("Если переключатель серый (Android 13+)", "If the switch is grayed out (Android 13+)"), restrictedHelp())
@@ -248,7 +248,7 @@ private fun AppHeader(version: String, update: UpdateState) {
             Image(ImageVector.vectorResource(R.drawable.ic_launcher_foreground), null, Modifier.requiredSize(126.dp))
         }
         Spacer(Modifier.height(14.dp))
-        Text(tr("Динамический остров", "Dynamic Island"), color = Ui.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(tr("Динамический остров", "Nayland"), color = Ui.Text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(tr("Версия $version", "Version $version"), color = Ui.Sub, fontSize = 15.sp, modifier = Modifier.padding(top = 2.dp))
         val (label, color) = when (update) {
             UpdateState.UpToDate -> tr("Последняя версия", "Up to date") to Tints.Green
@@ -287,10 +287,10 @@ fun IdeaScreen(onBack: () -> Unit) {
         SectionHeader(tr("Откуда идея", "Where the idea comes from"))
         InfoText(
             tr(
-                "Идея и поведение перенесены с ПК-версии Dynamic Island для Windows (github.com/mihailkotovski/DynamicIsland): " +
+                "Идея и поведение перенесены с ПК-версии Nayland для Windows (github.com/mihailkotovski/DynamicIsland): " +
                     "пружинные анимации формы, плеер по клику, толчок вбок для смены трека, таймер от 1 до 99 минут " +
                     "с кольцом вокруг паузы и звонком, текст песен с LRCLIB.",
-                "The idea and behavior come from the PC version, Dynamic Island for Windows " +
+                "The idea and behavior come from the PC version, Nayland for Windows " +
                     "(github.com/mihailkotovski/DynamicIsland): spring shape animations, the player on click, a sideways push " +
                     "to change tracks, a 1 to 99 minute timer with a ring around pause and an alarm, lyrics from LRCLIB.",
             ),
