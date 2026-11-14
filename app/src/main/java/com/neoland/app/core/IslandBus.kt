@@ -22,14 +22,14 @@ object IslandBus {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val serviceRunning = MutableStateFlow(false)
-    val expanded = MutableStateFlow(false)
+    val expanded get() = NeolandUIState.expanded
     /** id активности, которую пользователь выбрал (например, кликом по пузырю) */
-    val focus = MutableStateFlow<String?>(null)
+    val focus get() = NeolandUIState.focus
 
-    val media = MutableStateFlow<MediaInfo?>(null)
-    val lyrics = MutableStateFlow<Lyrics?>(null)
+    val media get() = NeolandMediaState.media
+    val lyrics get() = NeolandMediaState.lyrics
     /** Как идёт поиск текста для трека с ключом first */
-    val lyricsStatus = MutableStateFlow<Pair<String, LyricsStatus>?>(null)
+    val lyricsStatus get() = NeolandMediaState.lyricsStatus
     val progress = MutableStateFlow<Map<String, ProgressInfo>>(emptyMap())
     val chrono = MutableStateFlow<Map<String, ChronoInfo>>(emptyMap())
     val calls = MutableStateFlow<Map<String, CallInfo>>(emptyMap())
@@ -49,34 +49,34 @@ object IslandBus {
     val stopwatch = MutableStateFlow<StopwatchState?>(null)
     val notice = MutableStateFlow<Notice?>(null)
     /** Идёт ввод ответа на уведомление: окну острова нужен фокус, чтобы показать клавиатуру */
-    val reply = MutableStateFlow<ReplyState?>(null)
+    val reply get() = NeolandUIState.reply
     /** Наклон телефона от -1 до 1: по нему сдвигаются блики Liquid Glass */
-    val glassTilt = MutableStateFlow(0f)
+    val glassTilt get() = NeolandDeviceState.glassTilt
     /** До какого момента (elapsedRealtime) показывать пример активности — пока двигают ползунок ширины */
-    val widthPreviewUntil = MutableStateFlow(0L)
+    val widthPreviewUntil get() = NeolandUIState.widthPreviewUntil
     /** Человек читает или отвечает — уведомление не убирается по таймеру */
     val noticeHold = MutableStateFlow(false)
-    val battery = MutableStateFlow(BatteryInfo())
+    val battery get() = NeolandDeviceState.battery
     val foregroundPackage = MutableStateFlow<String?>(null)
-    val landscape = MutableStateFlow(false)
+    val landscape get() = NeolandDeviceState.landscape
     /** Положение фронтальной камеры в горизонтальной ориентации (null — не горизонтально или нет данных) */
     val camera = MutableStateFlow<CamInfo?>(null)
     /** Вне часов «По расписанию» остров не показывается */
     val offSchedule = MutableStateFlow(false)
     /** Экран включён. Пока он погашен, датчик наклона и чтение экрана навигатора не работают — бережём батарею */
-    val screenOn = MutableStateFlow(true)
+    val screenOn get() = NeolandDeviceState.screenOn
     /** Включено энергосбережение Android — с «Экономией заряда» остров без живых эффектов */
-    val powerSave = MutableStateFlow(false)
+    val powerSave get() = NeolandDeviceState.powerSave
     /** Телефон заблокирован PIN-кодом, графическим ключом или паролем: тексты сообщений и кнопки скрыты */
-    val locked = MutableStateFlow(false)
+    val locked get() = NeolandDeviceState.locked
     /** На экране — экран блокировки (с PIN-кодом или без): в капсуле замок, если он включён в «Событиях» */
-    val keyguard = MutableStateFlow(false)
+    val keyguard get() = NeolandDeviceState.keyguard
     /** Открыт экран «Размер и положение»: остров красный, чтобы подогнать его под камеру */
-    val calibrating = MutableStateFlow(false)
+    val calibrating get() = NeolandUIState.calibrating
     /** При калибровке принудительно показывает выбранный профиль, даже если телефон разблокирован. */
-    val calibrationLockProfile = MutableStateFlow(false)
+    val calibrationLockProfile get() = NeolandUIState.calibrationLockProfile
     /** Играет та самая песня — остров празднует (пасхалка, Egg.kt) */
-    val egg = MutableStateFlow(false)
+    val egg get() = NeolandMediaState.egg
     /** Последнее касание раскрытого острова — чтобы не сворачивать его из-под пальца */
     @Volatile
     var lastTouch = 0L

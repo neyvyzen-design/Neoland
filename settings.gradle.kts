@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DynamicIsland"
+rootProject.name = "Neoland"
 include(":app")
